@@ -1,0 +1,9 @@
+Create and manipulate multivariate polynomial equations, including:
+    * handy Num interface for expression creation
+    * expression substitution
+    * collapse multivariates to univariates given the right substitutions
+
+I wrote this library so I could parameterize camera-ray intersections with
+arbitrary implicit surfaces, like this paper does for a torus:
+    http://www.emeyex.com/site/projects/raytorus.pdf
+only more generally.
