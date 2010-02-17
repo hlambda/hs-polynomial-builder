@@ -5,7 +5,7 @@ module MathObj.Polynomial.Builder (
 ) where
 
 import MathObj.Polynomial hiding (coeffs)
-import Data.List (find,intersperse,sort)
+import Data.List (find,intersperse,sort,(\\))
 import Data.Maybe (fromJust,isJust)
 
 data Expression a
@@ -19,6 +19,13 @@ data Expression a
     | Variable String
     deriving (Eq,Ord)
 
+subexp :: Expression a -> [Expression a]
+subexp (Add xs) = xs
+subexp (Mul xs) = xs
+subexp (Negate x) = [x]
+subexp (Exp x _) = [x]
+subexp _ = []
+
 instance Num a => Show (Expression a) where
     show (Const x) = show x
     show (Add xs) = "(" ++ (concat $ intersperse " + " $ map show xs) ++ ")"
@@ -30,9 +37,21 @@ instance Num a => Show (Expression a) where
         $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
 instance Num a => Num (Expression a) where
+    (Const x) + (Const y) = Const (x + y)
+    x@(Const _) + (Add ys) = Add $ x : ys
+    (Add xs) + y@(Const _) = Add $ y : xs
+    (Add xs) + (Add ys) = reduce $ Add $ xs ++ ys
     x + y = Add [x,y]
+    
+    (Const x) * (Const y) = Const (x * y)
+    x@(Const _) * (Mul ys) = Mul $ x : ys
+    (Mul xs) * y@(Const _) = Mul $ y : xs
+    (Mul xs) * (Mul ys) = Mul $ xs ++ ys
     x * y = Mul [x,y]
+    
+    (Const x) - (Const y) = Const (x - y)
     x - y = Add [x,Negate y]
+    
     negate = Negate
     abs = undefined
     signum = undefined
@@ -43,12 +62,21 @@ instance Fractional a => Fractional (Expression a) where
 
 data Polynomial a = Univariate [a] | Multivariate [(Expression a, [a])]
 
+-- | Build a polynomial out of an expression
+build :: Expression a -> Polynomial a
+build expr = undefined
+
 -- | Substitute a sub-expression with a replacement in some expression.
 subs :: (Eq a, Ord a) =>
     Expression a -> Expression a -> Expression a -> Expression a
-subs find replace expr = visit g e where
-    (f,r,e) = (orderExp find, orderExp replace, orderExp expr)
-    g e | f == e = r
+subs find replace expr = reduce $ visit g e where
+    (f,r,e) = (reduce find, reduce replace, reduce expr)
+    sf = subexp f
+    g e | e == f = r -- term matches
+    g e | null $ sf \\ (subexp e) = case e of -- all subterms match
+        Add xs -> Add $ r : ((subexp e) \\ sf)
+        Mul xs -> Mul $ r : ((subexp e) \\ sf)
+        x -> x -- just a scalar, will be picked up on different visit
     g e = e
 
 -- | Visit all the nodes of an expression, including the root.
@@ -60,13 +88,6 @@ visit f expr = visit' f $ f expr where
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
-
-reduce :: Expression a -> Expression a
-reduce expr = visit f expr where
-    f (Add xs) = Add $ concatMap g xs where
-        g (Add ys) = concatMap g ys
-        g e = [e]
-    f e = e
 
 -- order associative operations for internal use
 orderExp :: Ord a => Expression a -> Expression a
