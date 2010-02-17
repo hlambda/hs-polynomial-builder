@@ -34,6 +34,7 @@ instance Num a => Show (Expression a) where
 instance Num a => Num (Expression a) where
     (+) = Add
     (*) = Mul
+    (-) = Sub
     abs = Negate
     signum = undefined
     fromInteger = Const . fromInteger
@@ -50,6 +51,7 @@ subs find replace expr = subs' f r e where
     (f,r,e) = (orderExp find, orderExp replace, orderExp expr)
     subs' f r expr | f == expr = r
     subs' f r (Add x y) = Add (subs' f r x) (subs' f r y)
+    subs' f r (Sub x y) = Sub (subs' f r x) (subs' f r y)
     subs' f r (Mul x y) = Mul (subs' f r x) (subs' f r y)
     subs' _ _ expr = expr
 
