@@ -33,7 +33,7 @@ instance Num a => Show (Expression a) where
     show (Const x) = show x
     show (Add xs) = "(" ++ (concat $ intersperse " + " $ map show xs) ++ ")"
     show (Mul xs) = "(" ++ (concat $ intersperse " * " $ map show xs) ++ ")"
-    show (Negate x) = "-(" ++ show x ++ ")"
+    show (Negate x) = "(-(" ++ show x ++ "))"
     show (Exp x n) = "(" ++ show x ++ ")" ++ "^" ++ show n
     show (Variable x) = x
     show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
@@ -47,25 +47,37 @@ instance Num a => Num (Expression a) where
     (Const 0) + x = x
     x + (Const 0) = x
     (Const x) + (Const y) = Const (x + y)
-    x@Const{} + y@Add{} = y + Add [x]
-    x@Add{} + y@Const{} = x + Add [y]
-    (Add xs) + (Add ys) = Add $ c : filter (not . isConst) zs where
-        c = sum $ filter isConst zs
-        zs = concatMap g $ xs ++ ys
-        g (Add xs) = concatMap g xs
-        g x = [x]
+    (Add xs) + (Add ys) = case (c,filter (not . isConst) zs) of
+        (c,[]) -> c
+        (Const 0,[x]) -> x
+        (c,[x])-> c + x
+        (Const 0,fs) -> Add fs
+        (c,fs) -> Add $ c : fs
+        where
+            c = sum $ filter isConst zs
+            zs = concatMap g $ xs ++ ys
+            g (Add xs) = concatMap g xs
+            g x = [x]
+    x@Add{} + y = x + Add [y]
+    x + y@Add{} = y + Add [x]
     x + y = Add [x,y]
     
     (Const 1) * x = x
     x * (Const 1) = x
     (Const x) * (Const y) = Const (x * y)
-    x@Const{} * y@Mul{} = y * Mul [x]
-    x@Mul{} * y@Const{} = x * Mul [y]
-    (Mul xs) * (Mul ys) = Mul $ c : filter (not . isConst) zs where
-        c = product $ filter isConst zs
-        zs = concatMap g $ xs ++ ys
-        g (Mul xs) = concatMap g xs
-        g x = [x]
+    (Mul xs) * (Mul ys) = case (c,filter (not . isConst) zs) of
+        (c,[]) -> c
+        (Const 0,[x]) -> x
+        (c,[x])-> c * x
+        (Const 0,fs) -> Mul fs
+        (c,fs) -> Mul $ c : fs
+        where
+            c = product $ filter isConst zs
+            zs = concatMap g $ xs ++ ys
+            g (Mul xs) = concatMap g xs
+            g x = [x]
+    x@Mul{} * y = x * Mul [y]
+    x * y@Mul{} = y * Mul [x]
     x * y = Mul [x,y]
     
     (Const x) - (Const y) = Const (x - y)
@@ -83,7 +95,7 @@ data Polynomial a = Univariate [a] | Multivariate [(Expression a, [a])]
 
 -- | Build a polynomial out of an expression
 build :: Expression a -> Polynomial a
-build expr = undefined
+build (Add xs) = undefined --deg exp
 
 -- | Substitute a sub-expression with a replacement in some expression.
 subs :: (Eq a, Ord a) =>
@@ -106,3 +118,15 @@ visit f expr = visit' f $ f expr where
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
+
+reduce :: Num a => Expression a -> Expression a
+reduce = visit f where
+    f (Add xs) = case as ++ bs of
+        [x] -> x
+        ys -> Add ys
+        where
+            as = concatMap (\(Add ys) -> ys) $ filter g xs
+            bs = filter (not . g) xs
+            g Add{} = True
+            g _ = False
+    f e = e
