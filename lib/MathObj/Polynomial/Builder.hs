@@ -6,7 +6,7 @@ module MathObj.Polynomial.Builder (
 
 import MathObj.Polynomial hiding (coeffs)
 import Data.List (find,intersperse,sort)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust,isJust)
 
 data Expression a
     = Const a
@@ -60,6 +60,13 @@ visit f expr = visit' f $ f expr where
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
+
+reduce :: Expression a -> Expression a
+reduce expr = visit f expr where
+    f (Add xs) = Add $ concatMap g xs where
+        g (Add ys) = concatMap g ys
+        g e = [e]
+    f e = e
 
 -- order associative operations for internal use
 orderExp :: Ord a => Expression a -> Expression a
