@@ -5,15 +5,14 @@ module MathObj.Polynomial.Builder (
 ) where
 
 import MathObj.Polynomial hiding (coeffs)
-import Data.List (find)
+import Data.List (find,intersperse,sort)
 import Data.Maybe (fromJust)
 
 data Expression a
     = Const a
-    | Add (Expression a) (Expression a)
-    | Sub (Expression a) (Expression a)
+    | Add [Expression a]
+    | Mul [Expression a]
     | Negate (Expression a)
-    | Mul (Expression a) (Expression a)
     | Exp (Expression a) Int
     | A | B | C | D | E | F | G | H | I | J | K | L | M
     | N | O | P | Q | R | S | T | U | V | W | X | Y | Z
@@ -22,20 +21,20 @@ data Expression a
 
 instance Num a => Show (Expression a) where
     show (Const x) = show x
-    show (Add x y) = "(" ++ show x ++ " + " ++ show y ++ ")"
-    show (Sub x y) = "(" ++ show x ++ " - " ++ show y ++ ")"
+    show (Add xs) = "(" ++ (concat $ intersperse " + " $ map show xs) ++ ")"
+    show (Mul xs) = "(" ++ (concat $ intersperse " * " $ map show xs) ++ ")"
     show (Negate x) = "-(" ++ show x ++ ")"
-    show (Mul x y) = "(" ++ show x ++ " * " ++ show y ++ ")"
     show (Exp x n) = "(" ++ show x ++ ")" ++ "^" ++ show n
     show (Variable x) = x
     show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
         $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
 instance Num a => Num (Expression a) where
-    (+) = Add
-    (*) = Mul
-    (-) = Sub
-    abs = Negate
+    x + y = Add [x,y]
+    x * y = Mul [x,y]
+    x - y = Add [x,Negate y]
+    negate = Negate
+    abs = undefined
     signum = undefined
     fromInteger = Const . fromInteger
 
@@ -56,9 +55,8 @@ subs find replace expr = visit g e where
 visit :: (Expression a -> Expression a) -> Expression a -> Expression a
 visit f expr = visit' f $ f expr where
     visit' :: (Expression a -> Expression a) -> Expression a -> Expression a
-    visit' f (Add x y) = Add (f x) (f y)
-    visit' f (Sub x y) = Sub (f x) (f y)
-    visit' f (Mul x y) = Mul (f x) (f y)
+    visit' f (Add xs) = Add $ map f xs
+    visit' f (Mul xs) = Mul $ map f xs
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
@@ -66,6 +64,6 @@ visit f expr = visit' f $ f expr where
 -- order associative operations for internal use
 orderExp :: Ord a => Expression a -> Expression a
 orderExp = visit f where
-    f (Mul x y) = Mul (min x y) (max x y)
-    f (Add x y) = Add (min x y) (max x y)
+    f (Add xs) = Add $ sort xs
+    f (Mul xs) = Mul $ sort xs
     f expr = expr
