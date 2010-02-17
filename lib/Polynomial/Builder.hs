@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-module Polynomial.Builder (
+module MathObj.Polynomial.Builder (
     Expression(..), Polynomial(..),
     subs, visit
 ) where
