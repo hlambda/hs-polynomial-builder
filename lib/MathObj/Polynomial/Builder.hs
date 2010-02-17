@@ -44,18 +44,28 @@ isConst Const{} = True
 isConst _ = False
 
 instance Num a => Num (Expression a) where
+    (Const 0) + x = x
+    x + (Const 0) = x
     (Const x) + (Const y) = Const (x + y)
     x@Const{} + y@Add{} = y + Add [x]
     x@Add{} + y@Const{} = x + Add [y]
     (Add xs) + (Add ys) = Add $ c : filter (not . isConst) zs where
         c = sum $ filter isConst zs
-        zs = xs ++ ys
+        zs = concatMap g $ xs ++ ys
+        g (Add xs) = concatMap g xs
+        g x = [x]
     x + y = Add [x,y]
     
+    (Const 1) * x = x
+    x * (Const 1) = x
     (Const x) * (Const y) = Const (x * y)
-    x@(Const _) * (Mul ys) = Mul $ x : ys
-    (Mul xs) * y@(Const _) = Mul $ y : xs
-    (Mul xs) * (Mul ys) = Mul $ xs ++ ys
+    x@Const{} * y@Mul{} = y * Mul [x]
+    x@Mul{} * y@Const{} = x * Mul [y]
+    (Mul xs) * (Mul ys) = Mul $ c : filter (not . isConst) zs where
+        c = product $ filter isConst zs
+        zs = concatMap g $ xs ++ ys
+        g (Mul xs) = concatMap g xs
+        g x = [x]
     x * y = Mul [x,y]
     
     (Const x) - (Const y) = Const (x - y)
@@ -78,7 +88,7 @@ build expr = undefined
 -- | Substitute a sub-expression with a replacement in some expression.
 subs :: (Eq a, Ord a) =>
     Expression a -> Expression a -> Expression a -> Expression a
-subs f r expr = visit g expr where
+subs f r = visit g where
     sf = subexp f
     g e | e == f = r -- term matches
     g e | null $ sf \\ (subexp e) = case e of -- all subterms match
