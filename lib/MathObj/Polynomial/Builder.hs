@@ -5,7 +5,8 @@ module MathObj.Polynomial.Builder (
 ) where
 
 import MathObj.Polynomial hiding (coeffs)
-import Data.List (intersperse)
+import Data.List (find)
+import Data.Maybe (fromJust)
 
 data Expression a
     = Const a
@@ -14,7 +15,8 @@ data Expression a
     | Negate (Expression a)
     | Mul (Expression a) (Expression a)
     | Exp (Expression a) Int
-    | X | Y | Z | W
+    | A | B | C | D | E | F | G | H | I | J | K | L | M
+    | N | O | P | Q | R | S | T | U | V | W | X | Y | Z
     | Variable String
     deriving (Eq,Ord)
 
@@ -25,11 +27,9 @@ instance Num a => Show (Expression a) where
     show (Negate x) = "-(" ++ show x ++ ")"
     show (Mul x y) = "(" ++ show x ++ " * " ++ show y ++ ")"
     show (Exp x n) = "(" ++ show x ++ ")" ++ "^" ++ show n
-    show X = "X"
-    show Y = "Y"
-    show Z = "Z"
-    show W = "W"
     show (Variable x) = x
+    show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
+        $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
 instance Num a => Num (Expression a) where
     (+) = Add
