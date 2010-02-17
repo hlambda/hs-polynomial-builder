@@ -5,8 +5,11 @@ module MathObj.Polynomial.Builder (
 ) where
 
 import MathObj.Polynomial hiding (coeffs)
-import Data.List (find,intersperse,sort,(\\))
+import Data.Ord (comparing)
+import Data.List (find,intersperse,(\\),sortBy)
 import Data.Maybe (fromJust,isJust)
+import Control.Arrow (first,second,(***))
+import Control.Monad (join)
 
 data Expression a
     = Const a
@@ -36,11 +39,17 @@ instance Num a => Show (Expression a) where
     show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
         $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
+isConst :: Expression a -> Bool
+isConst Const{} = True
+isConst _ = False
+
 instance Num a => Num (Expression a) where
     (Const x) + (Const y) = Const (x + y)
-    x@(Const _) + (Add ys) = Add $ x : ys
-    (Add xs) + y@(Const _) = Add $ y : xs
-    (Add xs) + (Add ys) = reduce $ Add $ xs ++ ys
+    x@Const{} + y@Add{} = y + Add [x]
+    x@Add{} + y@Const{} = x + Add [y]
+    (Add xs) + (Add ys) = Add $ c : filter (not . isConst) zs where
+        c = sum $ filter isConst zs
+        zs = xs ++ ys
     x + y = Add [x,y]
     
     (Const x) * (Const y) = Const (x * y)
@@ -69,8 +78,7 @@ build expr = undefined
 -- | Substitute a sub-expression with a replacement in some expression.
 subs :: (Eq a, Ord a) =>
     Expression a -> Expression a -> Expression a -> Expression a
-subs find replace expr = reduce $ visit g e where
-    (f,r,e) = (reduce find, reduce replace, reduce expr)
+subs f r expr = visit g expr where
     sf = subexp f
     g e | e == f = r -- term matches
     g e | null $ sf \\ (subexp e) = case e of -- all subterms match
@@ -88,10 +96,3 @@ visit f expr = visit' f $ f expr where
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
-
--- order associative operations for internal use
-orderExp :: Ord a => Expression a -> Expression a
-orderExp = visit f where
-    f (Add xs) = Add $ sort xs
-    f (Mul xs) = Mul $ sort xs
-    f expr = expr
