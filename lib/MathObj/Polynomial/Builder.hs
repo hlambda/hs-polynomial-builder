@@ -47,20 +47,10 @@ data Polynomial a = Univariate [a] | Multivariate [(Expression a, [a])]
 -- | Substitute a sub-expression with a replacement in some expression.
 subs :: (Eq a, Ord a) =>
     Expression a -> Expression a -> Expression a -> Expression a
-subs find replace expr = subs' f r e where
+subs find replace expr = visit g e where
     (f,r,e) = (orderExp find, orderExp replace, orderExp expr)
-    subs' f r expr | f == expr = r
-    subs' f r (Add x y) = Add (subs' f r x) (subs' f r y)
-    subs' f r (Sub x y) = Sub (subs' f r x) (subs' f r y)
-    subs' f r (Mul x y) = Mul (subs' f r x) (subs' f r y)
-    subs' _ _ expr = expr
-
--- order associative operations for internal use
-orderExp :: Ord a => Expression a -> Expression a
-orderExp = visit f where
-    f (Mul x y) = Mul (min x y) (max x y)
-    f (Add x y) = Add (min x y) (max x y)
-    f expr = expr
+    g e | f == e = r
+    g e = e
 
 -- | Visit all the nodes of an expression, including the root.
 visit :: (Expression a -> Expression a) -> Expression a -> Expression a
@@ -72,3 +62,10 @@ visit f expr = visit' f $ f expr where
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
+
+-- order associative operations for internal use
+orderExp :: Ord a => Expression a -> Expression a
+orderExp = visit f where
+    f (Mul x y) = Mul (min x y) (max x y)
+    f (Add x y) = Add (min x y) (max x y)
+    f expr = expr
