@@ -1,25 +1,26 @@
 {-# LANGUAGE FlexibleInstances #-}
 module MathObj.Polynomial.Builder (
     Expression(..), Polynomial(..),
-    subs, visit
+    subs, visit, inTermsOf
 ) where
 
 import MathObj.Polynomial hiding (coeffs)
 import Data.Ord (comparing)
-import Data.List (find,intersperse,(\\),sortBy)
+import Data.List (find,intersperse,(\\),sort,groupBy)
 import Data.Maybe (fromJust,isJust)
 import Control.Arrow (first,second,(***))
 import Control.Monad (join)
 
 data Expression a
     = Const a
+    | ConstExp (Expression a)
     | Add [Expression a]
     | Mul [Expression a]
     | Negate (Expression a)
     | Exp (Expression a) Int
     | A | B | C | D | E | F | G | H | I | J | K | L | M
     | N | O | P | Q | R | S | T | U | V | W | X | Y | Z
-    | Variable String
+    | Var String
     deriving (Eq,Ord)
 
 subexp :: Expression a -> [Expression a]
@@ -35,7 +36,8 @@ instance Num a => Show (Expression a) where
     show (Mul xs) = "(" ++ (concat $ intersperse " * " $ map show xs) ++ ")"
     show (Negate x) = "(-(" ++ show x ++ "))"
     show (Exp x n) = "(" ++ show x ++ ")" ++ "^" ++ show n
-    show (Variable x) = x
+    show (Var x) = x
+    show (ConstExp x) = show x
     show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
         $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
@@ -92,10 +94,26 @@ instance Fractional a => Fractional (Expression a) where
     fromRational = Const . fromRational
 
 data Polynomial a = Univariate [a] | Multivariate [(Expression a, [a])]
+    deriving Show
 
 -- | Build a polynomial out of an expression
-build :: Expression a -> Polynomial a
-build (Add xs) = undefined --deg exp
+build :: (Num a, Ord a) => Expression a -> Expression a -> Polynomial a
+build var (Add as) = Univariate $ map f [ 0 .. maxDeg ] where
+    f x = case lookup x terms' of
+        Nothing -> 0
+        Just x -> x
+    terms' = map (first head . second sum . unzip)
+        $ groupBy (\x y -> fst x == fst y) $ sort terms
+    maxDeg = maximum $ map fst terms
+    terms = [ (degree x, coeff x) | x <- as ]
+    
+    coeff (Const x) = 0
+    coeff (Mul ms) = product $ map (\(Const x) -> x) $ filter isConst ms
+    coeff _ = 0
+    
+    degree (Mul ms) = length $ filter (== var) ms
+    degree x | x == var = 1
+    degree _ = 0
 
 -- | Substitute a sub-expression with a replacement in some expression.
 subs :: (Eq a, Ord a) =>
@@ -118,6 +136,9 @@ visit f expr = visit' f $ f expr where
     visit' f (Negate x) = Negate (f x)
     visit' f (Exp x n) = Exp (f x) n
     visit' f x = f x
+
+inTermsOf :: Expression a -> Expression a -> Expression a
+inTermsOf var expr = expr
 
 reduce :: Num a => Expression a -> Expression a
 reduce = visit f where
