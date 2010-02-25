@@ -13,7 +13,6 @@ import Control.Monad (join)
 
 data Expression a
     = Const a
-    | ConstExp (Expression a)
     | Add [Expression a]
     | Mul [Expression a]
     | Negate (Expression a)
@@ -37,7 +36,6 @@ instance Num a => Show (Expression a) where
     show (Negate x) = "(-(" ++ show x ++ "))"
     show (Exp x n) = "(" ++ show x ++ ")" ++ "^" ++ show n
     show (Var x) = x
-    show (ConstExp x) = show x
     show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
         $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
@@ -121,24 +119,26 @@ subs :: (Eq a, Ord a) =>
 subs f r = visit g where
     sf = subexp f
     g e | e == f = r -- term matches
-    g e | null $ sf \\ (subexp e) = case e of -- all subterms match
-        Add xs -> Add $ r : ((subexp e) \\ sf)
-        Mul xs -> Mul $ r : ((subexp e) \\ sf)
-        x -> x -- just a scalar, will be picked up on different visit
+    g e | (not $ null sf) && (null $ sf \\ se) =
+        case e of -- all subterms match
+            Add xs -> Add $ r : (se \\ sf)
+            Mul xs -> Mul $ r : (se \\ sf)
+            x -> x -- just a scalar, will be picked up on different visit
+        where se = subexp e
     g e = e
 
--- | Visit all the nodes of an expression, including the root.
+-- | Visit all the nodes of an expression, including the root, depth-first.
 visit :: (Expression a -> Expression a) -> Expression a -> Expression a
 visit f expr = visit' f $ f expr where
     visit' :: (Expression a -> Expression a) -> Expression a -> Expression a
-    visit' f (Add xs) = Add $ map f xs
-    visit' f (Mul xs) = Mul $ map f xs
-    visit' f (Negate x) = Negate (f x)
-    visit' f (Exp x n) = Exp (f x) n
+    visit' f (Add xs) = f $ Add $ map (visit' f) xs
+    visit' f (Mul xs) = f $ Mul $ map (visit' f) xs
+    visit' f (Negate x) = f $ Negate (visit' f x)
+    visit' f (Exp x n) = f $ Exp (visit' f x) n
     visit' f x = f x
 
 inTermsOf :: Expression a -> Expression a -> Expression a
-inTermsOf var expr = expr
+inTermsOf var expr = undefined
 
 reduce :: Num a => Expression a -> Expression a
 reduce = visit f where
