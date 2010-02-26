@@ -1,7 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
 module MathObj.Polynomial.Builder (
     Expression(..), Polynomial(..),
-    subs, visit, inTermsOf
+    subs, expand, visit, inTermsOf
 ) where
 
 import MathObj.Polynomial hiding (coeffs)
@@ -17,9 +16,10 @@ data Expression a
     | Mul [Expression a]
     | Negate (Expression a)
     | Exp (Expression a) Int
+    -- | Variable letters for expression-construction convenience
     | A | B | C | D | E | F | G | H | I | J | K | L | M
     | N | O | P | Q | R | S | T | U | V | W | X | Y | Z
-    | Var String
+    | Var String -- ^ Free-form variable name
     deriving (Eq,Ord)
 
 subexp :: Expression a -> [Expression a]
@@ -140,14 +140,21 @@ visit f expr = visit' f $ f expr where
 inTermsOf :: Expression a -> Expression a -> Expression a
 inTermsOf var expr = undefined
 
-reduce :: Num a => Expression a -> Expression a
-reduce = visit f where
-    f (Add xs) = case as ++ bs of
-        [x] -> x
-        ys -> Add ys
-        where
-            as = concatMap (\(Add ys) -> ys) $ filter g xs
-            bs = filter (not . g) xs
-            g Add{} = True
-            g _ = False
-    f e = e
+classify :: Expression a -> Expression a -> (Int,Int) -- coeff, exp
+classify var expr = undefined
+
+expand :: Num a => Expression a -> Expression a
+expand = visit f where
+    f (Add [x]) = x
+    f (Mul [x]) = x
+    f (Mul xs) = foldl1 g xs
+    f x = x
+    
+    g x (Add xs) = Add $ concatMap (h . g x) xs
+    g (Add xs) x = Add $ concatMap (h . g x) xs
+    g x (Mul xs) = Mul (x:xs)
+    g (Mul xs) x = Mul (x:xs)
+    g x y = x * y
+    
+    h (Add xs) = xs
+    h x = [x]
