@@ -1,6 +1,5 @@
 module MathObj.Polynomial.Builder (
-    Expression(..),
-    -- subs, visit, inTermsOf
+    Expression(..), subs
 ) where
 
 {-
@@ -132,12 +131,6 @@ visit f expr = visit' f $ f expr where
     visit' f e@Negate{} = Negate (visit' f x) where Negate x = f e
     visit' f e@Exp{} = Exp (visit' f x) n where Exp x n = f e
     visit' f x = f x
-
-terms :: Expression a -> [Expression a]
-terms x = x : (concatMap terms $ subterms x)
-
-leaves :: Expression a -> [Expression a]
-leaves = filter ((== 0) . length . subterms) . terms
 
 subterms :: Expression a -> [Expression a]
 subterms (Add xs) = xs
