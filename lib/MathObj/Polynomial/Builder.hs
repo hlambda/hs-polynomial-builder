@@ -128,14 +128,6 @@ subs f r = visit g where
             Mul{} -> product $ r : (se \\ sf)
             x -> x -- just a scalar, will be picked up on different visit
         where se = subterms e
-    g e | elem f sf = -- match found in subterms
-        case e of
-            Add{} -> 1000 + sum ys
-            Mul{} -> 1000 * product ys
-            _ -> e
-        where
-            (n,xs) = first length $ sift (== f) sf
-            ys = replicate n r ++ filter (/= f) xs
     g e = e
 
 -- only used by substitution since it requires that structures remain the same
