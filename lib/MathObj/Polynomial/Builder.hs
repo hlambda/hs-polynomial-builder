@@ -1,19 +1,14 @@
 module MathObj.Polynomial.Builder (
-    Expression(..), Polynomial(..),
+    Expression(..),
     -- subs, visit, inTermsOf
 ) where
 
 import MathObj.Polynomial hiding (coeffs,const,negate)
 import Data.Ord (comparing)
-import Data.List (find,intersperse,(\\),sort,groupBy,sortBy)
+import Data.List (find,intersperse,(\\),sort,groupBy,sortBy,group)
 import Data.Maybe (fromJust,isJust)
-import Control.Arrow (first,second,(***))
+import Control.Arrow (first,second,(***),(&&&))
 import Control.Monad (join)
-
-import Data.Traversable
-import Data.Foldable hiding (concatMap,sum,find,product,maximum,concat)
-import Data.Monoid (mappend,mempty,mconcat,appEndo)
-import Prelude hiding (foldl,foldl1)
 
 data Expression a
     = Const a
@@ -37,29 +32,52 @@ instance Num a => Show (Expression a) where
     show letter = (:[]) $ fst $ fromJust $ find ((== letter) . snd)
         $ zip ['A'..'Z'] [A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z]
 
-instance Num a => Num (Expression a) where
+newMul :: (Ord a, Num a) => [Expression a] -> Expression a
+newMul xs = case first product $ sift f xs of
+    (c,[]) -> c
+    (1,ys) -> Mul ys
+    (c,ys) -> Mul (c:ys)
+    where f (Const x) = True; f _ = False
+
+newAdd :: (Ord a, Num a) => [Expression a] -> Expression a
+newAdd xs = case first sum $ sift f xs of
+    (c,[]) -> c
+    (0,ys) -> Add ys
+    (c,ys) -> Add (c:ys)
+    where f (Const x) = True; f _ = False
+
+-- combine like terms
+combine :: (Ord a, Num a) => Expression a -> Expression a
+combine (Add xs) = sum
+    $ map (uncurry (*) . ((fromIntegral . length) &&& head))
+    $ group $ sort xs
+
+instance (Ord a, Num a) => Num (Expression a) where
+    -- constant addition rules
     (Const 0) + x = x
     x + (Const 0) = x
     (Const x) + (Const y) = Const (x + y)
+    -- roll in addends into a single sum
     (Add xs) + (Add ys) = sum $ xs ++ ys
-    (Add xs) + x = Add (x:xs)
-    x + (Add xs) = Add (x:xs)
-    x + y = Add [x,y]
+    (Add xs) + x = newAdd (x:xs)
+    x + (Add xs) = newAdd (x:xs)
+    x + y = newAdd [x,y]
     
-    -- constant multiplication
+    -- constant multiplication rules
     (Const x) * (Const y) = Const (x * y)
     (Const 0) * x = Const 0
     x * (Const 0) = Const 0
     (Const 1) * x = x
     x * (Const 1) = x
     -- expand polynomials in multiplication
-    x * (Add xs) = sum $ map (x *) xs
-    (Add xs) * x = sum $ map (x *) xs
+    x * (Add xs) = combine $ sum $ map (x *) xs
+    (Add xs) * x = combine $ sum $ map (x *) xs
     -- build recursive product types
     (Mul xs) * (Mul ys) = product $ xs ++ ys
-    (Mul xs) * x = Mul (x:xs)
-    x * (Mul xs) = Mul (x:xs)
-    x * y = Mul [x,y]
+    (Mul xs) * x = newMul (x:xs)
+    --x * (Mul xs) = Mul $ (x:xs)
+    x * (Mul xs) = newMul (x:xs)
+    x * y = newMul [x,y]
     
     -- constant subtraction
     (Const x) - (Const y) = Const (x - y)
@@ -79,17 +97,16 @@ instance Num a => Num (Expression a) where
     signum = undefined -- not important enough to implement
     fromInteger = Const . fromInteger
 
-instance Fractional a => Fractional (Expression a) where
+instance (Ord a, Fractional a) => Fractional (Expression a) where
     fromRational = Const . fromRational
 
-data Polynomial a = Univariate [a] | Multivariate [(Expression a, [a])]
-    deriving Show
-
 -- | Build a polynomial out of an expression
-build :: (Num a, Ord a) => Expression a -> Expression a -> Polynomial a
-build var (Add xs) = 
+--build :: (Num a, Ord a) => Expression a -> Expression a -> Polynomial a
+--build var (Add xs) = undefined
 
 -- | Substitute a sub-expression with a replacement in some expression.
+-- | Substitution is fairly literal, so substitutions with constants will not
+-- | work reliably where reductions can be made.
 subs :: (Eq a, Ord a) =>
     Expression a -> Expression a -> Expression a -> Expression a
 subs f r = visit g where
@@ -126,6 +143,9 @@ subterms (Negate x) = [x]
 subterms (Exp x _) = [x]
 subterms _ = []
 
+sift :: (a -> Bool) -> [a] -> ([a],[a])
+sift f xs = (filter f xs, filter (not . f) xs)
+
 {-
 inTermsOf :: Expression a -> Expression a -> Expression a
 inTermsOf var expr = undefined
@@ -138,6 +158,4 @@ classify var expr = sortBy (comparing snd)
         f (Mul xs) = xs
         f x = [x]
 
-sift :: (a -> Bool) -> [a] -> ([a],[a])
-sift f xs = (filter f xs, filter (not . f) xs)
 -}
