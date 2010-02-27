@@ -13,12 +13,9 @@ module MathObj.Polynomial.Builder (
     -T * D.x * C.x + C.x * C.x + C.x * -T * D.x)
 -}
 
-import MathObj.Polynomial hiding (coeffs,const,negate)
-import Data.Ord (comparing)
-import Data.List (find,intersperse,(\\),sort,groupBy,sortBy,group)
-import Data.Maybe (fromJust,isJust)
+import Data.List (find,intersperse,(\\),sort,group)
+import Data.Maybe (fromJust)
 import Control.Arrow (first,second,(***),(&&&))
-import Control.Monad (join)
 
 data Expression a
     = Const a
@@ -109,10 +106,6 @@ instance (Ord a, Num a) => Num (Expression a) where
 
 instance (Ord a, Fractional a) => Fractional (Expression a) where
     fromRational = Const . fromRational
-
--- | Build a polynomial out of an expression
---build :: (Num a, Ord a) => Expression a -> Expression a -> Polynomial a
---build var (Add xs) = undefined
 
 -- | Substitute a sub-expression with a replacement in some expression.
 -- | Substitution is fairly literal, so substitutions with constants will not
