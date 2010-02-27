@@ -3,6 +3,16 @@ module MathObj.Polynomial.Builder (
     -- subs, visit, inTermsOf
 ) where
 
+{-
+    > subs Z (Var "C.z" - T * Var "D.z")
+    $ subs Y (Var "C.y" - T * Var "D.y")
+    $ subs X (Var "C.x" - T * Var "D.x")
+    $ X^2 + Y^2 + Z^2
+    (-T * D.y * C.y + -T * D.y * -T * D.y + C.y * -T * D.y + C.y * C.y + -T * D.z *
+    C.z + -T * D.z * -T * D.z + C.z * -T * D.z + C.z * C.z + -T * D.x * -T * D.x +
+    -T * D.x * C.x + C.x * C.x + C.x * -T * D.x)
+-}
+
 import MathObj.Polynomial hiding (coeffs,const,negate)
 import Data.Ord (comparing)
 import Data.List (find,intersperse,(\\),sort,groupBy,sortBy,group)
@@ -107,27 +117,35 @@ instance (Ord a, Fractional a) => Fractional (Expression a) where
 -- | Substitute a sub-expression with a replacement in some expression.
 -- | Substitution is fairly literal, so substitutions with constants will not
 -- | work reliably where reductions can be made.
-subs :: (Eq a, Ord a) =>
+subs :: (Eq a, Ord a, Num a) =>
     Expression a -> Expression a -> Expression a -> Expression a
 subs f r = visit g where
     sf = subterms f
     g e | e == f = r -- term matches
     g e | (not $ null sf) && (null $ sf \\ se) =
         case e of -- all subterms match
-            Add xs -> Add $ r : (se \\ sf)
-            Mul xs -> Mul $ r : (se \\ sf)
+            Add{} -> sum $ r : (se \\ sf)
+            Mul{} -> product $ r : (se \\ sf)
             x -> x -- just a scalar, will be picked up on different visit
         where se = subterms e
+    g e | elem f sf = -- match found in subterms
+        case e of
+            Add{} -> 1000 + sum ys
+            Mul{} -> 1000 * product ys
+            _ -> e
+        where
+            (n,xs) = first length $ sift (== f) sf
+            ys = replicate n r ++ filter (/= f) xs
     g e = e
 
--- | Visit all the nodes of an expression, including the root, depth-first.
-visit :: (Expression a -> Expression a) -> Expression a -> Expression a
+-- only used by substitution since it requires that structures remain the same
+visit :: (Ord a, Num a) =>
+    (Expression a -> Expression a) -> Expression a -> Expression a
 visit f expr = visit' f $ f expr where
-    visit' :: (Expression a -> Expression a) -> Expression a -> Expression a
-    visit' f (Add xs) = f $ Add $ map (visit' f) xs
-    visit' f (Mul xs) = f $ Mul $ map (visit' f) xs
-    visit' f (Negate x) = f $ Negate (visit' f x)
-    visit' f (Exp x n) = f $ Exp (visit' f x) n
+    visit' f e@Add{} = sum $ map (visit' f) $ subterms $ f e
+    visit' f e@Mul{} = product $ map (visit' f) $ subterms $ f e
+    visit' f e@Negate{} = Negate (visit' f x) where Negate x = f e
+    visit' f e@Exp{} = Exp (visit' f x) n where Exp x n = f e
     visit' f x = f x
 
 terms :: Expression a -> [Expression a]
@@ -145,17 +163,3 @@ subterms _ = []
 
 sift :: (a -> Bool) -> [a] -> ([a],[a])
 sift f xs = (filter f xs, filter (not . f) xs)
-
-{-
-inTermsOf :: Expression a -> Expression a -> Expression a
-inTermsOf var expr = undefined
-
-classify :: Num a => Expression a -> Expression a -> [(Expression a,Int)]
-classify var expr = sortBy (comparing snd)
-    $ map (first product . second length . sift (/= var) . f) xs
-    where
-        (Add xs) = expand expr
-        f (Mul xs) = xs
-        f x = [x]
-
--}
