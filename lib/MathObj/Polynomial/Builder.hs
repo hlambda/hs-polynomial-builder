@@ -5,7 +5,7 @@ module MathObj.Polynomial.Builder (
 
 import MathObj.Polynomial hiding (coeffs)
 import Data.Ord (comparing)
-import Data.List (find,intersperse,(\\),sort,groupBy)
+import Data.List (find,intersperse,(\\),sort,groupBy,sortBy)
 import Data.Maybe (fromJust,isJust)
 import Control.Arrow (first,second,(***))
 import Control.Monad (join)
@@ -140,14 +140,23 @@ visit f expr = visit' f $ f expr where
 inTermsOf :: Expression a -> Expression a -> Expression a
 inTermsOf var expr = undefined
 
-classify :: Expression a -> Expression a -> (Int,Int) -- coeff, exp
-classify var expr = undefined
+classify :: Num a => Expression a -> Expression a -> [(Expression a,Int)]
+classify var expr = sortBy (comparing snd)
+    $ map (first product . second length . sift (/= var) . f) xs
+    where
+        (Add xs) = expand expr
+        f (Mul xs) = xs
+        f x = [x]
+
+sift :: (a -> Bool) -> [a] -> ([a],[a])
+sift f xs = (filter f xs, filter (not . f) xs)
 
 expand :: Num a => Expression a -> Expression a
 expand = visit f where
     f (Add [x]) = x
     f (Mul [x]) = x
     f (Mul xs) = foldl1 g xs
+    --f (Mul xs) = product xs
     f x = x
     
     g x (Add xs) = Add $ concatMap (h . g x) xs
